@@ -1,3 +1,7 @@
+# Credits
+
+Inspired by HirschDaniel, I saw his project and decide to try pn myself.
+
 # Logs
 
 ## 2024/12/25
@@ -12,10 +16,36 @@ Today, I learned about SDL2, which is the infrastruccture that I will be using f
 
 Later, I created the grid for the entire simulation where each cell is a pixel of the simulation.
 
-## 2024/12/31
+Added the color definition for the solid cells and the background cells, as well as the water cells.
 
-I added the
+## 2024/12/28
+
+Took 2 days off (actually, going out with my gf). Anyways, for a liquid simulation there should be a slod container or smething that should be at the users disposal.
+
+Declared a 1d array as `environment`for storing the information of each cell of the 2d grid. using the 1d array is for easy manipulation (Really?)
+
+learned how to draw with SDL2, enabled the drawing method of this simulation.
+
+## 2024/12/31 (Happy new year)
+
+Took some days off(I forgot what I did)
+
+Added: let the user to switch the drawing mode between solid and liquid.
+
+## 2025/01/02
+
+(Dealing with computer architecture for the opast two days)
+
+Added: flowing mechanism, the water flows down automatically. Moreover, the water stays from falling or disappearing if the below cell is a solid block.
 
 ## 2025/01/03
 
-I added the
+Bug fix: When drawing in water mode, it doesn't overwrite the solid cells.
+
+Added: Left flow of the water and right flow of the water
+
+### To Be Done:
+
+- Viscocity
+- Pressure of the water
+- Color of the cell with respect to the pressure
