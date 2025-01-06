@@ -44,6 +44,12 @@ Bug fix: When drawing in water mode, it doesn't overwrite the solid cells.
 
 Added: Left flow of the water and right flow of the water
 
+## 2025/01/04
+
+Added: the distingiuishment of the water based on the pressure of each cell.
+
+By assgining light blue and dark blue, define the maximum current pressure to be the dark blue, and the minimu to be zero. Later, we use interpolation to generate the color for each cell.
+
 ### To Be Done:
 
 - Viscocity
