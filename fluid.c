@@ -38,7 +38,7 @@ void draw_cell(SDL_Surface *surface, Cell cell);
 void init(Cell environment[ROWS * COLUMNS]);
 void calculate_pressure(Cell environment[ROWS * COLUMNS]);
 void draw_environment(SDL_Surface *surface, Cell environment[ROWS * COLUMNS]);
-Uint32 interpolate_color(double pressure, double min_pressure, double max_pressure);
+Uint32 interpolate_color(double pressure);
 
 void draw_grid(SDL_Surface *surface) {
     for (int i = 0; i < COLUMNS; i++) {
@@ -56,7 +56,7 @@ void draw_cell(SDL_Surface *surface, Cell cell) {
     int pixel_y = cell.y * CELL_SIZE;
     SDL_Rect cell_rect = (SDL_Rect){pixel_x, pixel_y, CELL_SIZE, CELL_SIZE};
     SDL_FillRect(surface, &cell_rect, COLOR_BLACK);
-    Uint32 COLOR = interpolate_color(cell.pressure, 0.0, max_pressure);
+    Uint32 COLOR = interpolate_color(cell.pressure);
     if (cell.type == WATER_TYPE) {
         int water_height = cell.fill_level * CELL_SIZE;
         int empty_height = CELL_SIZE - water_height;
@@ -260,25 +260,23 @@ void draw_environment(SDL_Surface *surface, Cell environment[ROWS * COLUMNS]) {
     }
 }
 
-Uint32 interpolate_color(double pressure, double min_pressure, double max_pressure) {
-    Uint8 light_blue_r = 0xA8;
-    Uint8 light_blue_g = 0xD2;
-    Uint8 light_blue_b = 0xFF;
+Uint32 interpolate_color(double pressure) {
+    Uint8 lblue_r = 0xA8;
+    Uint8 lblue_g = 0xD2;
+    Uint8 lblue_b = 0xFF;
 
-    Uint8 dark_blue_r = 0x1C;
-    Uint8 dark_blue_g = 0x34;
-    Uint8 dark_blue_b = 0x71;
+    Uint8 dblue_r = 0x1C;
+    Uint8 dblue_g = 0x34;
+    Uint8 dblue_b = 0x71;
 
-    double normalized_pressure = (pressure - min_pressure) / (max_pressure - min_pressure);
-    if (normalized_pressure < 0.0) normalized_pressure = 0.0;
-    if (normalized_pressure > 1.0) normalized_pressure = 1.0;
+    double mn = 0.0;
+    double npressure = (pressure - mn) / (max_pressure - mn);
+    if (npressure < 0.0) npressure = 0.0;
+    if (npressure > 1.0) npressure = 1.0;
 
-    Uint8 r =
-        (Uint8)((1.0 - normalized_pressure) * light_blue_r + normalized_pressure * dark_blue_r);
-    Uint8 g =
-        (Uint8)((1.0 - normalized_pressure) * light_blue_g + normalized_pressure * dark_blue_g);
-    Uint8 b =
-        (Uint8)((1.0 - normalized_pressure) * light_blue_b + normalized_pressure * dark_blue_b);
+    Uint8 r = (Uint8)((1.0 - npressure) * lblue_r + npressure * dblue_r);
+    Uint8 g = (Uint8)((1.0 - npressure) * lblue_g + npressure * dblue_g);
+    Uint8 b = (Uint8)((1.0 - npressure) * lblue_b + npressure * dblue_b);
 
     Uint32 color = (0xFF << 24) | (r << 16) | (g << 8) | b;
     return color;
