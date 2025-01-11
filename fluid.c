@@ -38,7 +38,7 @@ void draw_cell(SDL_Surface *surface, Cell cell);
 void init(Cell environment[ROWS * COLUMNS]);
 void calculate_pressure(Cell environment[ROWS * COLUMNS]);
 void draw_environment(SDL_Surface *surface, Cell environment[ROWS * COLUMNS]);
-Uint32 interpolate_color(double pressure);
+Uint32 interpolate_color(double pressure, double min_pressure, double max_pressure);
 
 void draw_grid(SDL_Surface *surface) {
     for (int i = 0; i < COLUMNS; i++) {
@@ -56,7 +56,7 @@ void draw_cell(SDL_Surface *surface, Cell cell) {
     int pixel_y = cell.y * CELL_SIZE;
     SDL_Rect cell_rect = (SDL_Rect){pixel_x, pixel_y, CELL_SIZE, CELL_SIZE};
     SDL_FillRect(surface, &cell_rect, COLOR_BLACK);
-    Uint32 COLOR = interpolate_color(cell.pressure);
+    Uint32 COLOR = interpolate_color(cell.pressure, 0.0, max_pressure);
     if (cell.type == WATER_TYPE) {
         int water_height = cell.fill_level * CELL_SIZE;
         int empty_height = CELL_SIZE - water_height;
@@ -72,62 +72,6 @@ void draw_cell(SDL_Surface *surface, Cell cell) {
     }
 }
 
-void update_horizontal_flow(Cell environment[ROWS * COLUMNS]) {
-    Cell temp_environment[ROWS * COLUMNS];  // Temporary buffer to store updates
-
-    // Copy the current environment to the temporary buffer
-    for (int i = 0; i < ROWS * COLUMNS; i++) {
-        temp_environment[i] = environment[i];
-    }
-
-    // Process each row for horizontal flow
-    for (int i = 0; i < ROWS; i++) {                     // Loop through each row
-        for (int j = 0; j < COLUMNS; j++) {              // Loop through each column
-            Cell source = environment[j + COLUMNS * i];  // Read source cell
-
-            if (source.type == WATER_TYPE && source.fill_level > 0) {
-                // Handle left neighbor
-                if (j > 0) {
-                    int left_index = (j - 1) + COLUMNS * i;
-                    if (temp_environment[left_index].type == WATER_TYPE) {
-                        double pressure_diff =
-                            source.pressure - temp_environment[left_index].pressure;
-                        if (pressure_diff > 0) {
-                            double water_to_move = min(pressure_diff / 2.0, source.fill_level);
-                            water_to_move =
-                                min(water_to_move, 1.0 - temp_environment[left_index].fill_level);
-
-                            temp_environment[j + COLUMNS * i].fill_level -= water_to_move;
-                            temp_environment[left_index].fill_level += water_to_move;
-                        }
-                    }
-                }
-
-                // Handle right neighbor
-                if (j < COLUMNS - 1) {
-                    int right_index = (j + 1) + COLUMNS * i;
-                    if (temp_environment[right_index].type == WATER_TYPE) {
-                        double pressure_diff =
-                            source.pressure - temp_environment[right_index].pressure;
-                        if (pressure_diff > 0) {
-                            double water_to_move = min(pressure_diff / 2.0, source.fill_level);
-                            water_to_move =
-                                min(water_to_move, 1.0 - temp_environment[right_index].fill_level);
-
-                            temp_environment[j + COLUMNS * i].fill_level -= water_to_move;
-                            temp_environment[right_index].fill_level += water_to_move;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Copy the updated buffer back to the environment
-    for (int i = 0; i < ROWS * COLUMNS; i++) {
-        environment[i] = temp_environment[i];
-    }
-}
 void simulation_step(Cell environment[ROWS * COLUMNS]) {
     Cell environment_next[ROWS * COLUMNS];
 
@@ -156,7 +100,37 @@ void simulation_step(Cell environment[ROWS * COLUMNS]) {
     }
 
     // Step 2: Redistribute water horizontally based on pressure
-    update_horizontal_flow(environment_next);
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMNS; j++) {
+            Cell *source = &environment[j + COLUMNS * i];
+
+            if (source->type == WATER_TYPE && source->fill_level > 0) {
+                // Check left neighbor
+                if (j > 0) {
+                    Cell *left = &environment_next[(j - 1) + COLUMNS * i];
+                    if (left->type == WATER_TYPE) {
+                        double pressure_difference = source->fill_level - left->fill_level;
+                        double water_to_move = pressure_difference / 2;  // Move half the difference
+                        water_to_move = max(0, min(water_to_move, source->fill_level));  // Clamp
+                        environment_next[j + COLUMNS * i].fill_level -= water_to_move;
+                        environment_next[(j - 1) + COLUMNS * i].fill_level += water_to_move;
+                    }
+                }
+
+                // Check right neighbor
+                if (j < COLUMNS - 1) {
+                    Cell *right = &environment_next[(j + 1) + COLUMNS * i];
+                    if (right->type == WATER_TYPE) {
+                        double pressure_difference = source->fill_level - right->fill_level;
+                        double water_to_move = pressure_difference / 2;  // Move half the difference
+                        water_to_move = fmax(0, fmin(water_to_move, source->fill_level));  // Clamp
+                        environment_next[j + COLUMNS * i].fill_level -= water_to_move;
+                        environment_next[(j + 1) + COLUMNS * i].fill_level += water_to_move;
+                    }
+                }
+            }
+        }
+    }
 
     // Step 3: Update the current environment with the new state
     for (int i = 0; i < ROWS * COLUMNS; i++) {
@@ -213,28 +187,20 @@ int main() {
                 if (e.motion.state) {
                     int cell_x = e.motion.x / CELL_SIZE;
                     int cell_y = e.motion.y / CELL_SIZE;
-
                     if (cell_x >= 0 && cell_x < COLUMNS && cell_y >= 0 && cell_y < ROWS) {
-                        int index = cell_x + COLUMNS * cell_y;
+                        Cell *target_cell = &environment[cell_x + COLUMNS * cell_y];
 
                         if (delete_mode) {
-                            environment[index].type = WATER_TYPE;
-                            environment[index].fill_level = 0;
+                            target_cell->type = WATER_TYPE;
+                            target_cell->fill_level = 0;
                         } else if (curr_type == WATER_TYPE) {
-                            // Handle water placement logic
-                            while (cell_y >= 0) {
-                                int current_index = cell_x + COLUMNS * cell_y;
-                                if (environment[current_index].type != SOLID_TYPE &&
-                                    environment[current_index].fill_level < 1) {
-                                    environment[current_index].type = WATER_TYPE;
-                                    environment[current_index].fill_level = 1;
-                                    break;
-                                }
-                                cell_y--;  // Move upwards
+                            if (target_cell->type != SOLID_TYPE) {
+                                target_cell->type = WATER_TYPE;
+                                target_cell->fill_level = 1;
                             }
                         } else if (curr_type == SOLID_TYPE) {
-                            environment[index].type = SOLID_TYPE;
-                            environment[index].fill_level = 0;
+                            target_cell->type = SOLID_TYPE;
+                            target_cell->fill_level = 0;
                         }
                     }
                 }
@@ -294,23 +260,25 @@ void draw_environment(SDL_Surface *surface, Cell environment[ROWS * COLUMNS]) {
     }
 }
 
-Uint32 interpolate_color(double pressure) {
-    Uint8 lblue_r = 0xA8;
-    Uint8 lblue_g = 0xD2;
-    Uint8 lblue_b = 0xFF;
+Uint32 interpolate_color(double pressure, double min_pressure, double max_pressure) {
+    Uint8 light_blue_r = 0xA8;
+    Uint8 light_blue_g = 0xD2;
+    Uint8 light_blue_b = 0xFF;
 
-    Uint8 dblue_r = 0x1C;
-    Uint8 dblue_g = 0x34;
-    Uint8 dblue_b = 0x71;
+    Uint8 dark_blue_r = 0x1C;
+    Uint8 dark_blue_g = 0x34;
+    Uint8 dark_blue_b = 0x71;
 
-    double mn = 0.0;
-    double npressure = (pressure - mn) / (max_pressure - mn);
-    if (npressure < 0.0) npressure = 0.0;
-    if (npressure > 1.0) npressure = 1.0;
+    double normalized_pressure = (pressure - min_pressure) / (max_pressure - min_pressure);
+    if (normalized_pressure < 0.0) normalized_pressure = 0.0;
+    if (normalized_pressure > 1.0) normalized_pressure = 1.0;
 
-    Uint8 r = (Uint8)((1.0 - npressure) * lblue_r + npressure * dblue_r);
-    Uint8 g = (Uint8)((1.0 - npressure) * lblue_g + npressure * dblue_g);
-    Uint8 b = (Uint8)((1.0 - npressure) * lblue_b + npressure * dblue_b);
+    Uint8 r =
+        (Uint8)((1.0 - normalized_pressure) * light_blue_r + normalized_pressure * dark_blue_r);
+    Uint8 g =
+        (Uint8)((1.0 - normalized_pressure) * light_blue_g + normalized_pressure * dark_blue_g);
+    Uint8 b =
+        (Uint8)((1.0 - normalized_pressure) * light_blue_b + normalized_pressure * dark_blue_b);
 
     Uint32 color = (0xFF << 24) | (r << 16) | (g << 8) | b;
     return color;
